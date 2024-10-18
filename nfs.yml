@@ -59,7 +59,7 @@
     - name: Mount NFS share on the clients
       mount:
         path: /mnt/nfs_share
-        src: "{{ groups['nfs_server'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) }}:/srv/nfs"
+        src: "{{ hostvars['nfs-server']['ansible_host'] }}:/srv/nfs"
         fstype: nfs
         opts: rw,sync
         state: mounted
@@ -68,7 +68,7 @@
     - name: Ensure NFS share is mounted at boot
       mount:
         path: /mnt/nfs_share
-        src: "{{ groups['nfs_server'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) }}:/srv/nfs"
+        src: "{{ hostvars['nfs-server']['ansible_host'] }}:/srv/nfs"
         fstype: nfs
         opts: rw,sync
         state: present
