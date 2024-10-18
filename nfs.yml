@@ -1,0 +1,75 @@
+---
+- name: Setup NFS Server and Clients with IP-based authorization
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install necessary NFS packages
+      apt:
+        name: "{{ item }}"
+        state: present
+        update_cache: yes
+      loop:
+        - nfs-common
+
+    - name: Install NFS server package
+      apt:
+        name: nfs-kernel-server
+        state: present
+        update_cache: yes
+      when: "'nfs_server' in group_names"
+
+    - name: Create export directory on the server
+      file:
+        path: /srv/nfs
+        state: directory
+        owner: nobody
+        group: nogroup
+        mode: '0755'
+      when: "'nfs-server' in group_names"
+
+    - name: Configure NFS exports with IP-based access control
+      lineinfile:
+        path: /etc/exports
+        line: "/srv/nfs {{ item }}(rw,sync,no_root_squash,no_subtree_check)"
+        create: yes
+      loop: "{{ groups['nfs_clients'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | list }}"
+      when: "'nfs_server' in group_names"
+
+    - name: Apply NFS export configuration on the server
+      command: exportfs -ra
+      when: "'nfs_server' in group_names"
+
+    - name: Ensure NFS server is enabled and started
+      systemd:
+        name: nfs-kernel-server
+        enabled: yes
+        state: started
+      when: "'nfs_server' in group_names"
+
+    - name: Create mount point on the clients
+      file:
+        path: /mnt/nfs_share
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      when: "'nfs_clients' in group_names"
+
+    - name: Mount NFS share on the clients
+      mount:
+        path: /mnt/nfs_share
+        src: "{{ groups['nfs_server'][0] }}:/srv/nfs"
+        fstype: nfs
+        opts: rw,sync
+        state: mounted
+      when: "'nfs_clients' in group_names"
+
+    - name: Ensure NFS share is mounted at boot
+      mount:
+        path: /mnt/nfs_share
+        src: "{{ groups['nfs_server'][0] }}:/srv/nfs"
+        fstype: nfs
+        opts: rw,sync
+        state: present
+      when: "'nfs_clients' in group_names"
